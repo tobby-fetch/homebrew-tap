@@ -8,15 +8,15 @@ class Tobby < Formula
   desc "Carries OCI assets across network zones, down to air-gapped ones"
   homepage "https://tobby-fetch.github.io/tobby-fetch/"
   license "GPL-3.0-only"
-  version "0.2.0"
+  version "0.3.0"
 
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/tobby-fetch/tobby-fetch/releases/download/v#{version}/tobby-darwin-arm64"
-      sha256 "6001aadb7013bb88686d4dc197ac3485181fa5e002cdab67c0b369592e9b7d63"
+      sha256 "84e3459a8baec24798314ae7b57dbd7913314b7cbc526953affedeffb80640fd"
     else
       url "https://github.com/tobby-fetch/tobby-fetch/releases/download/v#{version}/tobby-darwin-amd64"
-      sha256 "d828aa89286b924c43f8aab922379bee7be898dc1e76374bce3ddab149bc2439"
+      sha256 "8edc077138869492cdc891fb5d51818a3f6ac45ee102579feded707ad0917526"
     end
   end
 
