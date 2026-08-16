@@ -1,0 +1,117 @@
+# Formula sync — keeps Formula/tobby.rb on the latest published tobby
+# release, so `brew install tobby-fetch/tap/tobby` never lags a version
+# behind.
+#
+# The tap updates ITSELF rather than being pushed to by the main
+# repository's release workflow. That workflow states, and keeps, the
+# property that it needs no secret beyond its own GITHUB_TOKEN — and a
+# cross-repository push would need a PAT or a GitHub App installation
+# token. Here the tap commits to its own repository with its own token,
+# and reads the main repository's public releases with no credential at
+# all. Zero new secrets, on either side.
+#
+# The cost of that choice is latency: this polls rather than reacting to
+# the tag. Use the manual trigger to publish a formula the minute a
+# release lands.
+name: Sync formula
+
+on:
+  schedule:
+    # Every six hours. A release is not urgent enough to poll harder, and
+    # `workflow_dispatch` covers the "I want it now" case.
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-formula
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Bump the formula to the latest release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the tap
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Resolve the latest release and its checksums
+        id: rel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="tobby-fetch/tobby-fetch"
+
+          tag="$(gh release view --repo "$repo" --json tagName --jq .tagName)"
+          version="${tag#v}"
+          echo "Latest release: ${tag}"
+
+          # SHA256SUMS is the release's own checksum manifest, covered by
+          # the SLSA provenance — never recomputed here from a download we
+          # would have to trust separately.
+          gh release download "$tag" --repo "$repo" --pattern SHA256SUMS --output SHA256SUMS
+
+          arm64="$(awk '$2 ~ /tobby-darwin-arm64$/ {print $1}' SHA256SUMS)"
+          amd64="$(awk '$2 ~ /tobby-darwin-amd64$/ {print $1}' SHA256SUMS)"
+          for v in "$arm64" "$amd64"; do
+            case "$v" in
+              [0-9a-f]*) [ "${#v}" -eq 64 ] || { echo "::error::malformed checksum '$v' in SHA256SUMS"; exit 1; } ;;
+              *) echo "::error::missing a darwin checksum in SHA256SUMS"; exit 1 ;;
+            esac
+          done
+
+          {
+            echo "tag=${tag}"
+            echo "version=${version}"
+            echo "arm64=${arm64}"
+            echo "amd64=${amd64}"
+          } >> "$GITHUB_OUTPUT"
+          rm -f SHA256SUMS
+
+      - name: Render the formula
+        env:
+          VERSION: ${{ steps.rel.outputs.version }}
+          ARM64: ${{ steps.rel.outputs.arm64 }}
+          AMD64: ${{ steps.rel.outputs.amd64 }}
+        run: |
+          set -euo pipefail
+          # The template is the one in the main repository; this tap holds
+          # the rendered copy. Substitution is anchored on the fields the
+          # template marks as generated, so an unrelated edit to the
+          # formula survives a bump.
+          python3 - <<'PY'
+          import os, re, pathlib
+          p = pathlib.Path("Formula/tobby.rb")
+          s = p.read_text()
+          s = re.sub(r'^(\s*version\s+)"[^"]*"', lambda m: f'{m.group(1)}"{os.environ["VERSION"]}"', s, count=1, flags=re.M)
+
+          # Two sha256 lines, in template order: arm64 first, then amd64.
+          sums = [os.environ["ARM64"], os.environ["AMD64"]]
+          it = iter(sums)
+          s = re.sub(r'^(\s*sha256\s+)"[0-9a-f]{64}"',
+                     lambda m: f'{m.group(1)}"{next(it)}"', s, count=2, flags=re.M)
+          p.write_text(s)
+          PY
+
+      - name: Commit when the formula actually moved
+        env:
+          TAG: ${{ steps.rel.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- Formula/tobby.rb; then
+            echo "Formula already on ${TAG} — nothing to do."
+            exit 0
+          fi
+          git config user.name "tobby release bot"
+          git config user.email "noreply@github.com"
+          git add Formula/tobby.rb
+          git commit -m "⬆️ tobby ${TAG}: formula and release checksums
+
+          Checksums taken from the release's SHA256SUMS, which the SLSA
+          provenance covers.
+
+          Signed-off-by: tobby release bot <noreply@github.com>"
+          git push
