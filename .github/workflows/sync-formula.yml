@@ -1,25 +1,23 @@
-# Formula sync — keeps Formula/tobby.rb on the latest published tobby
-# release, so `brew install tobby-fetch/tap/tobby` never lags a version
-# behind.
+# Formula sync — manual recovery path.
 #
-# The tap updates ITSELF rather than being pushed to by the main
-# repository's release workflow. That workflow states, and keeps, the
-# property that it needs no secret beyond its own GITHUB_TOKEN — and a
-# cross-repository push would need a PAT or a GitHub App installation
-# token. Here the tap commits to its own repository with its own token,
-# and reads the main repository's public releases with no credential at
-# all. Zero new secrets, on either side.
+# The normal route is a push: the release workflow of tobby-fetch renders
+# this formula and commits it here in the same run that publishes a tag, so
+# `brew install tobby-fetch/tap/tobby` is never a version behind. That job
+# fails loudly if it cannot, which is the property that matters.
 #
-# The cost of that choice is latency: this polls rather than reacting to
-# the tag. Use the manual trigger to publish a formula the minute a
-# release lands.
+# This workflow is what you run when that push did not happen — an expired
+# token, a re-run after the fact, or a formula edited by hand and now out of
+# step. It needs no secret at all: it reads the latest public release and
+# commits with the tap's own token.
+#
+# It is deliberately NOT on a schedule. A cron here would look like a safety
+# net and would not be one: GitHub disables scheduled workflows in a public
+# repository after 60 days without activity, and this repository is quiet by
+# nature between releases — the net would rot exactly in the case it was
+# meant to cover.
 name: Sync formula
 
 on:
-  schedule:
-    # Every six hours. A release is not urgent enough to poll harder, and
-    # `workflow_dispatch` covers the "I want it now" case.
-    - cron: "17 */6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -31,7 +29,7 @@ concurrency:
 
 jobs:
   sync:
-    name: Bump the formula to the latest release
+    name: Bump the formula to the latest release (manual)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the tap

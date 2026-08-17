@@ -40,12 +40,15 @@ itself. © 2026 infraBuilder SASU and contributors.
 
 ## How this tap stays current
 
-`Formula/tobby.rb` is bumped by the [`sync-formula`](.github/workflows/sync-formula.yml)
-workflow: it reads the latest `tobby-fetch/tobby-fetch` release, takes the two
+`Formula/tobby.rb` is pushed here by the release workflow of
+[tobby-fetch](https://github.com/tobby-fetch/tobby-fetch), in the same run that
+publishes a tag: it renders the formula from its own template and takes the two
 darwin checksums from that release's `SHA256SUMS` — the manifest the SLSA
-provenance covers — and commits the change. It runs every six hours, and on
-demand from the Actions tab.
+provenance covers. The formula therefore never lags a release, and if the push
+cannot happen the release job fails visibly rather than leaving `brew install`
+quietly behind.
 
-The tap pulls rather than being pushed to, so that neither repository needs a
-cross-repository token: the main release chain keeps its property of requiring
-no secret beyond its own `GITHUB_TOKEN`.
+[`sync-formula`](.github/workflows/sync-formula.yml) is the manual recovery
+path for when that push did not happen. It is run on demand from the Actions
+tab and needs no secret: it reads the latest public release and commits with
+this repository's own token.
