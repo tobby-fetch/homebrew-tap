@@ -1,22 +1,37 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright © 2026 infraBuilder SASU and contributors
 #
-# Formula for the macOS convenience tier of Tobby (NFR-001). Checksums come
-# from the release's SHA256SUMS; the template lives in the main repository
-# under packaging/homebrew/tobby.rb.
+# Homebrew formula for the macOS convenience tier (NFR-001 amendment
+# 2026-08-12). Lives in this repository as the template; the published copy
+# is `Formula/tobby.rb` in the `tobby-fetch/homebrew-tap` repository.
+#
+# The tap keeps ITSELF up to date: its `sync-formula` workflow reads the
+# latest release here, takes the two darwin checksums from the release's
+# SHA256SUMS (which the SLSA provenance covers), and commits the bump. The
+# direction matters — a push from this repository into the tap would need a
+# cross-repository token, and this release chain deliberately requires no
+# secret beyond its own GITHUB_TOKEN.
+#
+# Install:  brew install tobby-fetch/tap/tobby
+#
+# The formula pours the release binaries — the same reproducible,
+# SBOM-and-provenance-carrying artifacts as every other target. Homebrew
+# verifies the pinned sha256 on download; the binaries carry Go's
+# deterministic ad-hoc code signature, which macOS accepts for
+# formula-installed CLI tools (no quarantine attribute on brew downloads).
 class Tobby < Formula
   desc "Carries OCI assets across network zones, down to air-gapped ones"
   homepage "https://tobby-fetch.github.io/tobby-fetch/"
   license "GPL-3.0-only"
-  version "0.3.0"
+  version "0.4.0" # bumped by the release workflow
 
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/tobby-fetch/tobby-fetch/releases/download/v#{version}/tobby-darwin-arm64"
-      sha256 "84e3459a8baec24798314ae7b57dbd7913314b7cbc526953affedeffb80640fd"
+      sha256 "554f59437e4c71d15e6349872150a56346cd961c58e976ce3916e05999efa4a7" # bumped by the release workflow
     else
       url "https://github.com/tobby-fetch/tobby-fetch/releases/download/v#{version}/tobby-darwin-amd64"
-      sha256 "8edc077138869492cdc891fb5d51818a3f6ac45ee102579feded707ad0917526"
+      sha256 "93ee731a55cea928928fa617b68a8eace24321d5550222880c51afd45cb32c39" # bumped by the release workflow
     end
   end
 
